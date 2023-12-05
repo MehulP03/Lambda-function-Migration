@@ -3,7 +3,7 @@ import boto3
 import requests
 import os
 
-def create_function(function_name,function_timeout, function_handler, function_runtime):
+def create_function(function_name,function_timeout, function_handler, function_runtime, environment_variables):
     sts_connection = boto3.client('sts')
     acct_b = sts_connection.assume_role(
         RoleArn="arn of the other account lambda role giving full access to the source account ",  # lambda account role
@@ -27,7 +27,10 @@ def create_function(function_name,function_timeout, function_handler, function_r
             Handler=function_handler,
             Runtime=function_runtime,
             Role="arn of the lambda role that has the only execute permission",  # resp_gf["Configuration"]["Role"],
-            Code={'ZipFile': open('./' + function_name + '.zip', 'rb').read()}
+            Code={'ZipFile': open('./' + function_name + '.zip', 'rb').read()},
+            Environment={
+                'Variables': environment_variables
+            }
         )
         os.remove('./' + function_name + '.zip')
         print("Create Function: " + function_name)
@@ -51,8 +54,14 @@ def get_function_from_source():
             export_lambda_configuration(source_lambda_client, function_name)
             # Export code
             export_lambda_code(source_lambda_client, function_name)
+
+            config_path = './' + function_name + '_config.json'
+            with open(config_path, 'r') as config_file:
+                config_data = json.load(config_file)
+                environment_vars = config_data.get('Environment', {}).get('Variables', {})
+            
             # Create function in the target account
-            create_function(function_name, function_timeout, function_handler, function_runtime)
+            create_function(function_name, function_timeout, function_handler, function_runtime, environment_vars)
 
 
 def export_lambda_configuration(lambda_client, function_name):
